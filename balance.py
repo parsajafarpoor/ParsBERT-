@@ -13,6 +13,7 @@
 """
 
 import argparse
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -44,13 +45,18 @@ def main():
     labels = sorted(train_df["label"].unique())  # همان ترتیب train.py
 
     # ---------- آزمایش روی val: آیا تصحیح دقت را بالا می‌برد؟ ----------
-    val_df = pd.read_csv(f"{args.data_dir}/val.csv")
-    val_logits = np.load(f"{args.output_dir}/val_logits.npy")
-    y_true = val_df["label"].map({name: i for i, name in enumerate(labels)}).to_numpy()
-    before = accuracy_score(y_true, val_logits.argmax(-1))
-    after = accuracy_score(y_true, balance(val_logits))
-    print(f"دقت val قبل از تصحیح: {before:.4f}")
-    print(f"دقت val بعد از تصحیح: {after:.4f}")
+    # بعد از --train_on_all فایل val_logits وجود ندارد (val جزو آموزش بوده)، پس این بخش رد می‌شود.
+    val_path = Path(args.output_dir) / "val_logits.npy"
+    if val_path.exists():
+        val_df = pd.read_csv(f"{args.data_dir}/val.csv")
+        val_logits = np.load(val_path)
+        y_true = val_df["label"].map({name: i for i, name in enumerate(labels)}).to_numpy()
+        before = accuracy_score(y_true, val_logits.argmax(-1))
+        after = accuracy_score(y_true, balance(val_logits))
+        print(f"دقت val قبل از تصحیح: {before:.4f}")
+        print(f"دقت val بعد از تصحیح: {after:.4f}")
+    else:
+        print("val_logits.npy نیست (احتمالاً با --train_on_all آموزش دیده)؛ فقط test تصحیح می‌شود.")
 
     # ---------- اعمال روی test ----------
     test_df = pd.read_csv(f"{args.data_dir}/test.csv")

@@ -11,6 +11,7 @@
 
 import argparse
 import math
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -149,7 +150,10 @@ def main():
     trainer.train()
 
     # ---------- ۸. ارزیابی نهایی روی val ----------
-    if not args.train_on_all:
+    if args.train_on_all:
+        # امتیازهای val ِ یک اجرای قبلی را پاک کن تا balance.py نتیجهٔ کهنه گزارش نکند.
+        Path(args.output_dir, "val_logits.npy").unlink(missing_ok=True)
+    else:
         val_pred = trainer.predict(val_ds)
         y_true = val_pred.label_ids
         y_pred = val_pred.predictions.argmax(-1)
