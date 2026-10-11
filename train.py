@@ -39,6 +39,8 @@ def parse_args():
     # نرخ یادگیری کوچک: مدل از قبل زبان فارسی را بلد است، فقط کمی تنظیمش می‌کنیم.
     p.add_argument("--lr", type=float, default=2e-5)
     p.add_argument("--seed", type=int, default=42)
+    # برخی کارت‌ها (مثل سری GTX 16xx) با fp16 گاهی loss را nan می‌کنند؛ با این گزینه خاموشش کنید.
+    p.add_argument("--no_fp16", action="store_true")
     return p.parse_args()
 
 
@@ -63,6 +65,7 @@ def main():
     args = parse_args()
     # seed ثابت باعث می‌شود هر بار اجرا نتیجهٔ یکسان بدهد.
     set_seed(args.seed)
+    print("دستگاه:", torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU")
 
     # ---------- ۱. خواندن داده ----------
     train_df = pd.read_csv(f"{args.data_dir}/train.csv")
@@ -121,7 +124,7 @@ def main():
         save_total_limit=1,
         load_best_model_at_end=True,  # در پایان، بهترین epoch را نگه دار نه آخرین را.
         metric_for_best_model="accuracy",
-        fp16=torch.cuda.is_available(),  # روی GPU با دقت نیمه، سریع‌تر و کم‌حافظه‌تر.
+        fp16=torch.cuda.is_available() and not args.no_fp16,  # روی GPU با دقت نیمه، سریع‌تر و کم‌حافظه‌تر.
         dataloader_pin_memory=torch.cuda.is_available(),  # pin_memory فقط روی GPU کاربرد دارد.
         logging_steps=50,
         report_to="none",
