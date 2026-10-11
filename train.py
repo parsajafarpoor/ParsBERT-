@@ -10,6 +10,7 @@
 """
 
 import argparse
+import math
 
 import numpy as np
 import pandas as pd
@@ -103,6 +104,10 @@ def main():
         }
 
     # ---------- ۶. تنظیمات آموزش ----------
+    # ۱۰٪ اول آموزش، نرخ یادگیری آرام بالا می‌رود تا لایهٔ تازهٔ دسته‌بند، BERT را به‌هم نریزد.
+    total_steps = math.ceil(len(train_ds) / args.batch_size) * args.epochs
+    warmup_steps = int(0.1 * total_steps)
+
     training_args = TrainingArguments(
         output_dir=args.output_dir,
         num_train_epochs=args.epochs,
@@ -110,13 +115,14 @@ def main():
         per_device_eval_batch_size=args.batch_size * 2,
         learning_rate=args.lr,
         weight_decay=0.01,
-        warmup_ratio=0.1,  # ۱۰٪ اول آموزش، نرخ یادگیری آرام بالا می‌رود تا مدل به‌هم نریزد.
+        warmup_steps=warmup_steps,
         eval_strategy="epoch",  # بعد از هر epoch روی val ارزیابی کن.
         save_strategy="epoch",
         save_total_limit=1,
         load_best_model_at_end=True,  # در پایان، بهترین epoch را نگه دار نه آخرین را.
         metric_for_best_model="accuracy",
         fp16=torch.cuda.is_available(),  # روی GPU با دقت نیمه، سریع‌تر و کم‌حافظه‌تر.
+        dataloader_pin_memory=torch.cuda.is_available(),  # pin_memory فقط روی GPU کاربرد دارد.
         logging_steps=50,
         report_to="none",
         seed=args.seed,
