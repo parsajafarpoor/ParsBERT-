@@ -17,7 +17,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score
 
 
 def softmax(x):
@@ -51,8 +50,8 @@ def main():
         val_df = pd.read_csv(f"{args.data_dir}/val.csv")
         val_logits = np.load(val_path)
         y_true = val_df["label"].map({name: i for i, name in enumerate(labels)}).to_numpy()
-        before = accuracy_score(y_true, val_logits.argmax(-1))
-        after = accuracy_score(y_true, balance(val_logits))
+        before = (val_logits.argmax(-1) == y_true).mean()
+        after = (balance(val_logits) == y_true).mean()
         print(f"دقت val قبل از تصحیح: {before:.4f}")
         print(f"دقت val بعد از تصحیح: {after:.4f}")
     else:
