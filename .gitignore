@@ -1,3 +1,4 @@
 outputs/
 predictions.csv
 __pycache__/
+val_errors.csv

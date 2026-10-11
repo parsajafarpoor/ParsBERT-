@@ -15,7 +15,7 @@ import math
 import numpy as np
 import pandas as pd
 import torch
-from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -41,6 +41,9 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42)
     # برخی کارت‌ها (مثل سری GTX 16xx) با fp16 گاهی loss را nan می‌کنند؛ با این گزینه خاموشش کنید.
     p.add_argument("--no_fp16", action="store_true")
+    # آموزش نهایی روی train+val (۲۰٪ دادهٔ بیشتر). در این حالت ارزیابی روی val معنی ندارد،
+    # پس اول تنظیمات خوب را با اجرای معمولی پیدا کنید و بعد با همان تنظیمات این گزینه را بزنید.
+    p.add_argument("--train_on_all", action="store_true")
     return p.parse_args()
 
 
@@ -87,7 +90,8 @@ def main():
         # padding اینجا انجام نمی‌شود؛ DataCollator هر batch را به اندازهٔ طولانی‌ترین متن همان batch پر می‌کند.
         return tokenizer(df["text"].tolist(), truncation=True, max_length=args.max_length)
 
-    train_ds = NewsDataset(encode(train_df), train_df["label"].map(label2id).tolist())
+    fit_df = pd.concat([train_df, val_df], ignore_index=True) if args.train_on_all else train_df
+    train_ds = NewsDataset(encode(fit_df), fit_df["label"].map(label2id).tolist())
     val_ds = NewsDataset(encode(val_df), val_df["label"].map(label2id).tolist())
     test_ds = NewsDataset(encode(test_df))
 
@@ -119,10 +123,11 @@ def main():
         learning_rate=args.lr,
         weight_decay=0.01,
         warmup_steps=warmup_steps,
-        eval_strategy="epoch",  # بعد از هر epoch روی val ارزیابی کن.
-        save_strategy="epoch",
+        # بعد از هر epoch روی val ارزیابی کن (مگر وقتی val جزو دادهٔ آموزش است).
+        eval_strategy="no" if args.train_on_all else "epoch",
+        save_strategy="no" if args.train_on_all else "epoch",
         save_total_limit=1,
-        load_best_model_at_end=True,  # در پایان، بهترین epoch را نگه دار نه آخرین را.
+        load_best_model_at_end=not args.train_on_all,  # در پایان، بهترین epoch را نگه دار نه آخرین را.
         metric_for_best_model="accuracy",
         fp16=torch.cuda.is_available() and not args.no_fp16,  # روی GPU با دقت نیمه، سریع‌تر و کم‌حافظه‌تر.
         dataloader_pin_memory=torch.cuda.is_available(),  # pin_memory فقط روی GPU کاربرد دارد.
@@ -135,7 +140,7 @@ def main():
         model=model,
         args=training_args,
         train_dataset=train_ds,
-        eval_dataset=val_ds,
+        eval_dataset=None if args.train_on_all else val_ds,
         data_collator=DataCollatorWithPadding(tokenizer),
         compute_metrics=compute_metrics,
     )
@@ -144,10 +149,23 @@ def main():
     trainer.train()
 
     # ---------- ۸. ارزیابی نهایی روی val ----------
-    val_pred = trainer.predict(val_ds)
-    y_pred = val_pred.predictions.argmax(-1)
-    print(val_pred.metrics)
-    print(classification_report(val_pred.label_ids, y_pred, target_names=labels, digits=4))
+    if not args.train_on_all:
+        val_pred = trainer.predict(val_ds)
+        y_true = val_pred.label_ids
+        y_pred = val_pred.predictions.argmax(-1)
+        print(val_pred.metrics)
+        print(classification_report(y_true, y_pred, target_names=labels, digits=4))
+
+        # ماتریس درهم‌ریختگی: سطر = برچسب واقعی، ستون = پیش‌بینی مدل.
+        cm = pd.DataFrame(confusion_matrix(y_true, y_pred), index=labels, columns=labels)
+        print("ماتریس درهم‌ریختگی (سطر=واقعی، ستون=پیش‌بینی):")
+        print(cm.to_string())
+
+        # خبرهایی که اشتباه دسته‌بندی شدند، برای بررسی با چشم.
+        wrong = val_df.assign(predicted=[id2label[i] for i in y_pred])
+        wrong = wrong[wrong["label"] != wrong["predicted"]]
+        wrong.to_csv("val_errors.csv", index=False, encoding="utf-8-sig")
+        print("val_errors.csv ساخته شد:", len(wrong), "خبر اشتباه")
 
     best_dir = f"{args.output_dir}/best_model"
     trainer.save_model(best_dir)
