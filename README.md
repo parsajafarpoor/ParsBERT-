@@ -38,5 +38,12 @@ files.download("predictions.csv")
 
 مثال: `!python train.py --epochs 4 --lr 3e-5`
 
+## بهتر کردن دقت
+- آخر هر اجرا ماتریس درهم‌ریختگی چاپ می‌شود و خبرهای اشتباه در `val_errors.csv` ذخیره می‌شوند.
+- `python balance.py`: اگر مدل یک کلاس را بیش از حد پیش‌بینی کند (مثلاً «بین‌الملل» به‌جای «سیاست»)،
+  با فرض متعادل بودن داده، پیش‌بینی‌های مرزی را جابه‌جا می‌کند و `predictions_balanced.csv` می‌سازد.
+  اول دقت val قبل و بعد را چاپ می‌کند؛ فقط اگر بهتر شد از آن استفاده کنید.
+- `python train.py --train_on_all`: آموزش نهایی روی train+val، بعد از پیدا کردن تنظیمات خوب.
+
 ## منبع داده
 زیرمجموعه‌ای از [PN-Summary](https://github.com/hooshvare/pn-summary) (Hooshvare Team, MIT License). جزئیات در `data/README.txt`.

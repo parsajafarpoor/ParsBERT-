@@ -153,6 +153,7 @@ def main():
         val_pred = trainer.predict(val_ds)
         y_true = val_pred.label_ids
         y_pred = val_pred.predictions.argmax(-1)
+        np.save(f"{args.output_dir}/val_logits.npy", val_pred.predictions)
         print(val_pred.metrics)
         print(classification_report(y_true, y_pred, target_names=labels, digits=4))
 
@@ -172,7 +173,10 @@ def main():
     tokenizer.save_pretrained(best_dir)
 
     # ---------- ۹. پیش‌بینی test و ساخت predictions.csv ----------
-    test_pred = trainer.predict(test_ds).predictions.argmax(-1)
+    test_logits = trainer.predict(test_ds).predictions
+    # امتیازهای خام را نگه می‌داریم تا balance.py بدون آموزش دوباره بتواند از آن‌ها استفاده کند.
+    np.save(f"{args.output_dir}/test_logits.npy", test_logits)
+    test_pred = test_logits.argmax(-1)
     out = pd.DataFrame({"id": test_df["id"], "label": [id2label[i] for i in test_pred]})
     out.to_csv("predictions.csv", index=False)
     print("predictions.csv ساخته شد:", len(out), "ردیف")
