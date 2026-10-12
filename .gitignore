@@ -4,3 +4,5 @@ __pycache__/
 val_errors.csv
 predictions_balanced.csv
 predictions_knn.csv
+predictions_ensemble.csv
+outputs*/
