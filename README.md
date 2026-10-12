@@ -45,6 +45,9 @@ files.download("predictions.csv")
   اول دقت val قبل و بعد را چاپ می‌کند؛ فقط اگر بهتر شد از آن استفاده کنید.
 - `python knn_fix.py`: اگر خبری از test تقریباً همان متن یک خبر train باشد، برچسب آن را می‌گیرد.
   آستانهٔ شباهت را روی val انتخاب می‌کند و فقط اگر کمک کرد `predictions_knn.csv` می‌سازد.
+- `python find_label_errors.py`: با k-fold ِ ۵تایی برچسب‌های احتمالاً اشتباه train را پیدا می‌کند و در
+  `suspect_labels.csv` می‌نویسد. ستون `new_label` را پر کنید (برچسب درست، یا «حذف») و بعد
+  `python train.py --label_fixes suspect_labels.csv` را اجرا کنید.
 - `python train.py --train_on_all`: آموزش نهایی روی train+val، بعد از پیدا کردن تنظیمات خوب.
 
 ## منبع داده

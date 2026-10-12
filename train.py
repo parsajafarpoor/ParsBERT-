@@ -45,6 +45,8 @@ def parse_args():
     # آموزش نهایی روی train+val (۲۰٪ دادهٔ بیشتر). در این حالت ارزیابی روی val معنی ندارد،
     # پس اول تنظیمات خوب را با اجرای معمولی پیدا کنید و بعد با همان تنظیمات این گزینه را بزنید.
     p.add_argument("--train_on_all", action="store_true")
+    # فایلی که find_label_errors.py ساخته و ستون new_label آن را خودتان پر کرده‌اید.
+    p.add_argument("--label_fixes", default=None)
     return p.parse_args()
 
 
@@ -63,6 +65,23 @@ class NewsDataset(torch.utils.data.Dataset):
         if self.labels is not None:
             item["labels"] = self.labels[i]
         return item
+
+
+def apply_label_fixes(train_df, path, labels):
+    """برچسب‌های اصلاح‌شده را اعمال می‌کند: برچسب جدید، «حذف»، یا خالی (بدون تغییر)."""
+    fixes = pd.read_csv(path, dtype={"new_label": str}).fillna({"new_label": ""})
+    fixes = fixes[fixes["new_label"].str.strip() != ""]
+    drop = []
+    for _, r in fixes.iterrows():
+        new = r["new_label"].strip()
+        if new == "حذف":
+            drop.append(r["row"])
+        elif new in labels:
+            train_df.loc[r["row"], "label"] = new
+        else:
+            raise ValueError(f"برچسب ناشناخته در ردیف {r['row']}: {new!r} (باید یکی از {labels} یا «حذف» باشد)")
+    print(f"اصلاح برچسب: {len(fixes) - len(drop)} خبر برچسبش عوض شد، {len(drop)} خبر حذف شد.")
+    return train_df.drop(index=drop).reset_index(drop=True)
 
 
 def main():
@@ -90,6 +109,9 @@ def main():
     def encode(df):
         # padding اینجا انجام نمی‌شود؛ DataCollator هر batch را به اندازهٔ طولانی‌ترین متن همان batch پر می‌کند.
         return tokenizer(df["text"].tolist(), truncation=True, max_length=args.max_length)
+
+    if args.label_fixes:
+        train_df = apply_label_fixes(train_df, args.label_fixes, labels)
 
     fit_df = pd.concat([train_df, val_df], ignore_index=True) if args.train_on_all else train_df
     train_ds = NewsDataset(encode(fit_df), fit_df["label"].map(label2id).tolist())
