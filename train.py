@@ -47,6 +47,9 @@ def parse_args():
     p.add_argument("--train_on_all", action="store_true")
     # فایلی که find_label_errors.py ساخته و ستون new_label آن را خودتان پر کرده‌اید.
     p.add_argument("--label_fixes", default=None)
+    # همهٔ لایه‌های BERT منجمد می‌شوند و فقط classifier آموزش می‌بیند (برای مقایسه).
+    # برای این حالت نرخ یادگیری بزرگ‌تری لازم است، مثلاً --lr 1e-3.
+    p.add_argument("--freeze_bert", action="store_true")
     return p.parse_args()
 
 
@@ -163,6 +166,11 @@ def main():
     model = AutoModelForSequenceClassification.from_pretrained(
         args.model, num_labels=len(labels), id2label=id2label, label2id=label2id
     )
+    if args.freeze_bert:
+        for param in model.bert.parameters():
+            param.requires_grad = False
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"BERT منجمد شد؛ پارامترهای قابل آموزش: {n_trainable:,}")
 
     # ---------- ۵. معیار ارزیابی ----------
     def compute_metrics(eval_pred):

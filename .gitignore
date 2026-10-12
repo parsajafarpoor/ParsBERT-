@@ -7,3 +7,4 @@ predictions_knn.csv
 predictions_ensemble.csv
 outputs*/
 suspect_labels.csv
+val_errors_with_probs.csv
