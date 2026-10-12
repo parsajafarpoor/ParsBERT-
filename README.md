@@ -4,6 +4,7 @@
 مدل پایه: [`HooshvareLab/bert-fa-zwnj-base`](https://huggingface.co/HooshvareLab/bert-fa-zwnj-base)
 
 گزارش کامل کار: [`docs/finetuning-report.pdf`](docs/finetuning-report.pdf)
+راهنمای آموزشی برای مبتدی‌ها: [`docs/beginner-guide.pdf`](docs/beginner-guide.pdf)
 
 ## نتیجه‌ها (روی val.csv، ۶۰۰ خبر)
 | مدل | دقت | Macro-F1 |
