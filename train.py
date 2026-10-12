@@ -67,6 +67,46 @@ class NewsDataset(torch.utils.data.Dataset):
         return item
 
 
+def epoch_table(log_history):
+    """برای هر دوره: میانگین loss آموزش، loss اعتبارسنجی و Macro-F1 اعتبارسنجی."""
+    train_logs = [h for h in log_history if "loss" in h and "eval_loss" not in h]
+    rows = []
+    for h in log_history:
+        if "eval_loss" not in h:
+            continue
+        epoch = round(h["epoch"])
+        losses = [t["loss"] for t in train_logs if epoch - 1 < t["epoch"] <= epoch]
+        rows.append({
+            "epoch": epoch,
+            "train_loss": round(float(np.mean(losses)), 4) if losses else float("nan"),
+            "val_loss": round(h["eval_loss"], 4),
+            "val_macro_f1": round(h["eval_f1_macro"], 4),
+        })
+    return pd.DataFrame(rows)
+
+
+def plot_learning_curve(log_history, path):
+    """loss آموزش (هر چند گام) و loss اعتبارسنجی (هر دوره) روی یک نمودار."""
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    train = [(h["step"], h["loss"]) for h in log_history if "loss" in h and "eval_loss" not in h]
+    val = [(h["step"], h["eval_loss"]) for h in log_history if "eval_loss" in h]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(*zip(*train), label="train loss", color="#2457c5")
+    ax.plot(*zip(*val), "o-", label="validation loss", color="#c0392b")
+    ax.set_xlabel("optimization step")
+    ax.set_ylabel("cross-entropy loss")
+    ax.set_title("Learning curve")
+    ax.grid(alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
 def apply_label_fixes(train_df, path, labels):
     """برچسب‌های اصلاح‌شده را اعمال می‌کند: برچسب جدید، «حذف»، یا خالی (بدون تغییر)."""
     fixes = pd.read_csv(path, dtype={"new_label": str}).fillna({"new_label": ""})
@@ -154,7 +194,7 @@ def main():
         metric_for_best_model="accuracy",
         fp16=torch.cuda.is_available() and not args.no_fp16,  # روی GPU با دقت نیمه، سریع‌تر و کم‌حافظه‌تر.
         dataloader_pin_memory=torch.cuda.is_available(),  # pin_memory فقط روی GPU کاربرد دارد.
-        logging_steps=50,
+        logging_steps=20,  # برای نمودار یادگیری: loss آموزش هر ۲۰ گام ثبت می‌شود
         report_to="none",
         seed=args.seed,
     )
@@ -168,8 +208,33 @@ def main():
         compute_metrics=compute_metrics,
     )
 
+    # ---------- اطلاعات مدل و آموزش (برای گزارش) ----------
+    n_total = sum(p.numel() for p in model.parameters())
+    n_classifier = sum(p.numel() for p in model.classifier.parameters())
+    n_pooler = sum(p.numel() for p in model.bert.pooler.parameters())
+    steps_per_epoch = math.ceil(len(train_ds) / args.batch_size)
+    print(f"تعداد کل پارامترها: {n_total:,}")
+    print(f"پارامترهای سر طبقه‌بندی (classifier): {n_classifier:,}")
+    print(f"پارامترهای pooler (این checkpoint آن را ندارد و تصادفی ساخته می‌شود): {n_pooler:,}")
+    print(f"گام در هر دوره: {steps_per_epoch}   کل گام‌ها: {steps_per_epoch * args.epochs}   warmup: {warmup_steps}")
+
+    # ارزیابی پیش از هر گام آموزش: مدل هنوز چیزی یاد نگرفته است.
+    if not args.train_on_all:
+        before = trainer.evaluate()
+        print(f"loss اعتبارسنجی پیش از آموزش: {before['eval_loss']:.4f}   (ln 6 = {math.log(len(labels)):.4f})")
+        print(f"دقت پیش از آموزش: {before['eval_accuracy']:.4f}   Macro-F1: {before['eval_f1_macro']:.4f}")
+
     # ---------- ۷. آموزش ----------
     trainer.train()
+
+    # جدول دوره‌ها و نمودار یادگیری از تاریخچهٔ ثبت‌شدهٔ Trainer.
+    if not args.train_on_all:
+        table = epoch_table(trainer.state.log_history)
+        table.to_csv(f"{args.output_dir}/epochs.csv", index=False)
+        print("جدول دوره‌ها:")
+        print(table.to_string(index=False))
+        plot_learning_curve(trainer.state.log_history, f"{args.output_dir}/learning_curve.png")
+        print(f"نمودار یادگیری ذخیره شد: {args.output_dir}/learning_curve.png")
 
     # ---------- ۸. ارزیابی نهایی روی val ----------
     if args.train_on_all:
