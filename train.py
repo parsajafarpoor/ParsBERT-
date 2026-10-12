@@ -6,7 +6,7 @@
 
 خروجی‌ها:
     outputs/best_model/   بهترین مدل (بر اساس دقت روی val)
-    predictions.csv       پیش‌بینی برای test با ستون‌های id,label
+    outputs/predictions.csv  پیش‌بینی برای test با ستون‌های id,label
 """
 
 import argparse
@@ -264,8 +264,8 @@ def main():
         # خبرهایی که اشتباه دسته‌بندی شدند، برای بررسی با چشم.
         wrong = val_df.assign(predicted=[id2label[i] for i in y_pred])
         wrong = wrong[wrong["label"] != wrong["predicted"]]
-        wrong.to_csv("val_errors.csv", index=False, encoding="utf-8-sig")
-        print("val_errors.csv ساخته شد:", len(wrong), "خبر اشتباه")
+        wrong.to_csv(f"{args.output_dir}/val_errors.csv", index=False, encoding="utf-8-sig")
+        print(f"{args.output_dir}/val_errors.csv ساخته شد:", len(wrong), "خبر اشتباه")
 
     best_dir = f"{args.output_dir}/best_model"
     trainer.save_model(best_dir)
@@ -277,8 +277,9 @@ def main():
     np.save(f"{args.output_dir}/test_logits.npy", test_logits)
     test_pred = test_logits.argmax(-1)
     out = pd.DataFrame({"id": test_df["id"], "label": [id2label[i] for i in test_pred]})
-    out.to_csv("predictions.csv", index=False)
-    print("predictions.csv ساخته شد:", len(out), "ردیف")
+    # داخل پوشهٔ همین اجرا، تا اجرای بعدی پیش‌بینی‌های این مدل را بازنویسی نکند.
+    out.to_csv(f"{args.output_dir}/predictions.csv", index=False)
+    print(f"{args.output_dir}/predictions.csv ساخته شد:", len(out), "ردیف")
     print(out["label"].value_counts())
 
 
